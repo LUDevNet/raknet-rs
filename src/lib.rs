@@ -19,7 +19,7 @@ pub use packet_priority::{OrderingChannel, PacketPriority, PacketReliability};
 pub use peer::{RakPeerConfig, RemoteSystemConnectMode};
 pub use queue::Queue;
 pub use reliability_layer::AckList;
-pub use server::{PacketHandler, RakPeer};
+pub use server::{PacketHandler, RakPeer, RemoteSystem};
 pub use types::{RakNetTime, SystemAddress, SystemIndex};
 
 #[macro_export]

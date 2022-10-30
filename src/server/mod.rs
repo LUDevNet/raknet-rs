@@ -2,7 +2,6 @@ mod connection;
 mod handler;
 
 use bstr::BString;
-use connection::Connection;
 use num_traits::FromPrimitive;
 use std::{
     net::{SocketAddr, SocketAddrV4},
@@ -12,6 +11,7 @@ use tokio::net::UdpSocket;
 use tracing::{debug, error, info};
 
 use crate::{RakPeerConfig, ID};
+pub use connection::RemoteSystem;
 pub use handler::PacketHandler;
 
 pub struct RakPeer<H> {
@@ -34,7 +34,7 @@ impl<H: PacketHandler> RakPeer<H> {
     pub async fn run(&mut self, password: String) -> Result<(), tokio::io::Error> {
         let start = Instant::now();
         let mut buf = vec![0; 2048];
-        let mut connections: Vec<Connection> = Vec::new();
+        let mut connections: Vec<RemoteSystem> = Vec::new();
         let peer_config = RakPeerConfig {
             max_incoming_connections: 10,
             incoming_password: BString::from(password),
@@ -77,7 +77,7 @@ impl<H: PacketHandler> RakPeer<H> {
                         match id {
                             ID::OpenConnectionRequest => {
                                 let reply = if true {
-                                    connections.push(Connection::new(origin));
+                                    connections.push(RemoteSystem::new(origin));
                                     ID::OpenConnectionReply
                                 } else {
                                     ID::NoFreeIncomingConnections

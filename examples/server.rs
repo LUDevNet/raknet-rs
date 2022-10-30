@@ -2,6 +2,7 @@ use argh::FromArgs;
 use bstr::BStr;
 use raknet::PacketHandler;
 use raknet::RakPeer;
+use raknet::RemoteSystem;
 use raknet::SystemAddress;
 use std::net::Ipv4Addr;
 use std::ops::ControlFlow;
@@ -23,8 +24,12 @@ struct TestServer {
 struct BasicHandler;
 
 impl PacketHandler for BasicHandler {
-    fn on_user_packet(&mut self, bytes: &[u8]) -> ControlFlow<()> {
-        info!("user packet: {:?}", BStr::new(bytes));
+    fn on_user_packet(&mut self, bytes: &[u8], conn: &mut RemoteSystem) -> ControlFlow<()> {
+        info!(
+            "user packet from {}: {:?}",
+            conn.system_address(),
+            BStr::new(bytes)
+        );
         ControlFlow::Break(())
     }
 }

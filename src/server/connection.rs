@@ -28,7 +28,7 @@ use tracing::warn;
 
 use super::handler::PacketHandler;
 
-pub(super) struct Connection {
+pub struct RemoteSystem {
     pub(super) addr: SystemAddress,
     pub(super) connect_mode: RemoteSystemConnectMode,
     pub(super) remote_system_time: RakNetTime,
@@ -37,7 +37,7 @@ pub(super) struct Connection {
     pub(super) queue: Queue,
 }
 
-impl Connection {
+impl RemoteSystem {
     pub(super) fn new(addr: SystemAddress) -> Self {
         Self {
             addr,
@@ -50,7 +50,11 @@ impl Connection {
         }
     }
 
-    pub(super) fn send(&mut self, bs: BitStreamWrite, reliability: PacketReliability) {
+    pub fn system_address(&self) -> SystemAddress {
+        self.addr
+    }
+
+    pub fn send(&mut self, bs: BitStreamWrite, reliability: PacketReliability) {
         self.queue.push(bs, reliability);
     }
 
@@ -155,7 +159,7 @@ impl Connection {
                 Some(id) => warn!("TODO: {:?}: {} bits", id, internal_packet.data_bit_size),
                 None => {
                     let bytes = internal_packet.data;
-                    match handler.on_user_packet(bytes) {
+                    match handler.on_user_packet(bytes, self) {
                         ControlFlow::Continue(_) => {
                             warn!("Unhandled user packet [{}]: {:?}", id, &bytes[1..])
                         }
