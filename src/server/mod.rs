@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 use tokio::net::UdpSocket;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{RakPeerConfig, ID};
 pub use connection::RemoteSystem;
@@ -67,6 +67,13 @@ impl<H: PacketHandler> RakPeer<H> {
                     &mut self.handler,
                 );
                 connection.update(&self.socket).await?;
+                if connection.queue.is_empty() && connection.pending_disconnect() {
+                    if let Some(index) = connections.iter_mut().position(|x| x.addr == origin) {
+                        connections.remove(index);
+                    } else {
+                        warn!("Failed to find connection {} to remove!", origin);
+                    }
+                }
             } else {
                 let id_byte = match ID::of_packet(bytes) {
                     Ok(b) => b,

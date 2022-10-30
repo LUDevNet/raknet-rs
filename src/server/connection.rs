@@ -137,6 +137,7 @@ impl RemoteSystem {
                 }
                 Some(ID::DisconnectionNotification) => {
                     info!("DisconnectionNotification");
+                    self.connect_mode = RemoteSystemConnectMode::DisconnectAsapSilently;
                 }
                 Some(ID::InternalPing) => {
                     let mut in_bit_stream = BitStreamRead::with_size(
@@ -185,5 +186,13 @@ impl RemoteSystem {
         debug!("{:?}", buf);
         socket.send_to(buf, self.addr).await?;
         Ok(())
+    }
+
+    pub(crate) fn pending_disconnect(&self) -> bool {
+        use RemoteSystemConnectMode::*;
+        matches!(
+            self.connect_mode,
+            DisconnectAsap | DisconnectAsapSilently | DisconnectOnNoAck
+        )
     }
 }
