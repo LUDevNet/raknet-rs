@@ -7,6 +7,7 @@ mod packet_priority;
 mod peer;
 mod queue;
 mod reliability_layer;
+mod server;
 mod types;
 pub mod util;
 
@@ -18,6 +19,7 @@ pub use packet_priority::{OrderingChannel, PacketPriority, PacketReliability};
 pub use peer::{RakPeerConfig, RemoteSystemConnectMode};
 pub use queue::Queue;
 pub use reliability_layer::AckList;
+pub use server::{PacketHandler, RakPeer};
 pub use types::{RakNetTime, SystemAddress, SystemIndex};
 
 #[macro_export]

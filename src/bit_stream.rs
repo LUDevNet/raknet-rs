@@ -486,7 +486,7 @@ impl BitStreamWrite {
                 // If we didn't write it all out in the first half (8 - (numberOfBitsUsed%8) is the number we wrote in the first half)
                 {
                     self.data[(self.number_of_bits_used >> 3) + 1] =
-                        (data_byte << (8 - number_of_bits_used_mod_8)) as u8; // Second half (overlaps byte boundary)
+                        data_byte << (8 - number_of_bits_used_mod_8); // Second half (overlaps byte boundary)
                 }
             }
 
