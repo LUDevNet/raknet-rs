@@ -1,6 +1,8 @@
 use argh::FromArgs;
 use bstr::BStr;
+use raknet::BitStreamWrite;
 use raknet::PacketHandler;
+use raknet::PacketReliability;
 use raknet::RakPeer;
 use raknet::RemoteSystem;
 use raknet::SystemAddress;
@@ -26,10 +28,19 @@ struct BasicHandler;
 impl PacketHandler for BasicHandler {
     fn on_user_packet(&mut self, bytes: &[u8], conn: &mut RemoteSystem) -> ControlFlow<()> {
         info!(
-            "user packet from {}: {:?}",
+            "user packet [{}] from {}: {:?}",
+            bytes[0],
             conn.system_address(),
-            BStr::new(bytes)
+            BStr::new(&bytes[1..])
         );
+        if bytes[0] == 84 {
+            let mut reply = BitStreamWrite::with_capacity(13 << 8);
+            reply.write(85u8);
+            reply.write(100u32);
+            reply.write(200u32);
+            reply.write(300u32);
+            conn.send(reply, PacketReliability::Reliable);
+        }
         ControlFlow::Break(())
     }
 }

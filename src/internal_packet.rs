@@ -28,17 +28,28 @@ impl<'a> InternalPacket<'a> {
         self.data
     }
 
-    pub fn write(&self, output: &mut BitStreamWrite) {
-        //output.write(self.time);
+    pub fn write(&self, output: &mut BitStreamWrite) -> usize {
+        let start = output.num_bits();
         output.write(self.msg_num);
         output.write_bits(self.reliability);
         if let Some(ordering) = &self.ordering {
             output.write_bits(ordering.channel);
             output.write(ordering.index);
+        } else {
+            assert!(!matches!(
+                self.reliability,
+                PacketReliability::ReliableOrdered
+                    | PacketReliability::ReliableSequenced
+                    | PacketReliability::UnreliableSequenced
+            ));
         }
         output.write_bool(self.is_split_packet);
+        if self.is_split_packet {
+            unimplemented!()
+        }
         output.write_compressed(self.data_bit_size as u16);
         output.write_aligned_bytes(self.data);
+        output.num_bits() - start
     }
 
     pub fn parse(

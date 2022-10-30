@@ -41,6 +41,10 @@ impl<H: PacketHandler> RakPeer<H> {
         };
 
         loop {
+            for conn in &mut connections {
+                conn.update(&self.socket).await?;
+            }
+
             let (length, remote) = self.socket.recv_from(&mut buf).await?;
             let origin = match remote {
                 SocketAddr::V4(v4) => v4,

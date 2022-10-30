@@ -72,7 +72,7 @@ impl RemoteSystem {
         if acknowledgements {
             let _time: RakNetTime = bit_stream.read().unwrap();
             let _acks = AckList::deserialize(&mut bit_stream).unwrap();
-            debug!("time: {}, acks: {:?}", _time, _acks);
+            info!("time: {}, recv acks: {:?}", _time, _acks);
         }
         let has_time = bit_stream
             .read_bool() // NOTE: BUG in RakNet. If we reach EOF here, just ignore it.
