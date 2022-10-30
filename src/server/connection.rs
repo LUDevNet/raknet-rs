@@ -180,7 +180,10 @@ impl RemoteSystem {
         let mut output = BitStreamWrite::new();
         self.queue
             .generate_datagram(&mut output, &mut self.msg_num_gen, time, &mut self.acks);
-        socket.send_to(output.data(), self.addr).await?;
+
+        let buf = output.data();
+        debug!("{:?}", buf);
+        socket.send_to(buf, self.addr).await?;
         Ok(())
     }
 }

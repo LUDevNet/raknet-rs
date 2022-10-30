@@ -266,6 +266,12 @@ pub struct BitStreamWrite {
     data: Vec<u8>,
 }
 
+macro_rules! assert_bs_invariant {
+    ($self:ident) => {
+        debug_assert_eq!(bits_to_bytes!($self.number_of_bits_used), $self.data.len());
+    };
+}
+
 impl BitStreamWrite {
     pub fn new() -> Self {
         Self {
@@ -294,22 +300,19 @@ impl BitStreamWrite {
             return;
         }
 
-        let mut new_number_of_bits_allocated: BitSize =
+        let new_number_of_bits_allocated: BitSize =
             number_of_bits_to_write + self.number_of_bits_used;
 
         if new_number_of_bits_allocated > 0
-            && (self.data.len() <= ((new_number_of_bits_allocated - 1) >> 3))
+            && self.data.len() < bits_to_bytes!(new_number_of_bits_allocated)
         // If we need to allocate 1 or more new bytes
         {
             // Less memory efficient but saves on news and deletes
             // Cap to 1MB buffer to save on huge allocations
-            new_number_of_bits_allocated = (number_of_bits_to_write + self.number_of_bits_used) * 2;
-            if new_number_of_bits_allocated - (number_of_bits_to_write + self.number_of_bits_used)
-                > 1048576
-            {
-                new_number_of_bits_allocated =
-                    number_of_bits_to_write + self.number_of_bits_used + 1048576;
-            }
+            let amount_to_reserve = bits_to_bytes!(
+                new_number_of_bits_allocated + new_number_of_bits_allocated.max(0xFFFFF)
+            );
+            self.data.reserve(amount_to_reserve - self.data.len());
 
             // BitSize_t newByteOffset = BITS_TO_BYTES( numberOfBitsAllocated );
             // Use realloc and free so we are more efficient than delete and new for resizing
@@ -324,6 +327,7 @@ impl BitStreamWrite {
 
     // Write a 0
     pub fn write_0(&mut self) {
+        assert_bs_invariant!(self);
         self.add_bits_and_reallocate(1);
 
         // New bytes need to be zeroed
@@ -336,6 +340,7 @@ impl BitStreamWrite {
 
     // Write a 1
     pub fn write_1(&mut self) {
+        assert_bs_invariant!(self);
         self.add_bits_and_reallocate(1);
 
         let number_of_bits_mod_8: BitSize = self.number_of_bits_used & 7;
@@ -357,13 +362,16 @@ impl BitStreamWrite {
     }
 
     pub fn write<T: WriteSafe>(&mut self, data: T) {
+        assert_bs_invariant!(self);
         let input =
             unsafe { slice::from_raw_parts((&data) as *const T as *const u8, mem::size_of::<T>()) };
-        self._write_bits(input, std::mem::size_of::<T>() << 3, true);
+        let number_of_bits_to_write = mem::size_of::<T>() << 3;
+        self._write_bits(input, number_of_bits_to_write, true);
     }
 
     /// Write some bits to the stream
     pub fn write_bits<T: Bits>(&mut self, value: T) {
+        assert_bs_invariant!(self);
         assert!(T::NUM <= mem::size_of::<T>() << 3);
         let input = unsafe {
             slice::from_raw_parts((&value) as *const T as *const u8, mem::size_of::<T>())
@@ -372,6 +380,7 @@ impl BitStreamWrite {
     }
 
     pub fn write_compressed<T: WriteSafe>(&mut self, data: T) {
+        assert_bs_invariant!(self);
         let input =
             unsafe { slice::from_raw_parts((&data) as *const T as *const u8, mem::size_of::<T>()) };
         self._write_compressed(input, true)
@@ -379,6 +388,7 @@ impl BitStreamWrite {
 
     // Write an array or casted stream
     pub fn write_bytes(&mut self, input: &[u8], number_of_bytes: usize) {
+        assert_bs_invariant!(self);
         if number_of_bytes == 0 {
             return;
         }
@@ -394,12 +404,15 @@ impl BitStreamWrite {
 
     // Align the next write and/or read to a byte boundary.  This can be used to 'waste' bits to byte align for efficiency reasons
     fn align_write_to_byte_boundary(&mut self) {
-        if self.number_of_bits_used > 0 {
-            self.number_of_bits_used += 8 - (((self.number_of_bits_used - 1) & 7) + 1);
+        assert_bs_invariant!(self);
+        let offset = self.number_of_bits_used % 8;
+        if offset > 0 {
+            self.number_of_bits_used += 8 - offset;
         }
     }
 
     pub fn write_aligned_bytes(&mut self, bytes: &[u8]) {
+        assert_bs_invariant!(self);
         self.align_write_to_byte_boundary();
 
         // This is inlined from [`write_bytes`]
@@ -409,6 +422,7 @@ impl BitStreamWrite {
 
     // Assume the input source points to a native type, compress and write it
     fn _write_compressed(&mut self, input: &[u8], unsigned_data: bool) {
+        debug_assert_eq!(bits_to_bytes!(self.number_of_bits_used), self.data.len());
         // NOTE: We use input slice len instead of bit count
         let mut current_byte: BitSize = input.len() - 1; // PCs
 
@@ -459,7 +473,7 @@ impl BitStreamWrite {
         }
 
         self.add_bits_and_reallocate(number_of_bits_to_write);
-        let mut offset: BitSize = 0;
+        let mut offset: usize = 0;
         let mut data_byte: u8;
 
         let number_of_bits_used_mod_8: BitSize = self.number_of_bits_used & 7;
@@ -492,18 +506,15 @@ impl BitStreamWrite {
 
             if number_of_bits_to_write >= 8 {
                 self.number_of_bits_used += 8;
-            } else {
-                self.number_of_bits_used += number_of_bits_to_write;
-            }
-
-            if number_of_bits_to_write >= 8 {
                 number_of_bits_to_write -= 8;
             } else {
+                self.number_of_bits_used += number_of_bits_to_write;
                 number_of_bits_to_write = 0;
             }
 
             offset += 1;
         }
+        //assert_bs_invariant!(self);
     }
 }
 
@@ -521,6 +532,8 @@ impl std::io::Write for BitStreamWrite {
 
 #[cfg(test)]
 mod tests {
+    use crate::BitStreamWrite;
+
     #[test]
     fn test_read() {
         let mut bit_stream = super::BitStreamRead::new(&[0b11100011, 0b00000100]);
@@ -531,5 +544,53 @@ mod tests {
         assert!(!bit_stream.read_bit());
         assert!(!bit_stream.read_bit());
         assert_eq!(bit_stream.read::<u8>(), Ok(0b11000001));
+    }
+
+    #[test]
+    fn test_write() {
+        let mut bs = BitStreamWrite::new();
+        bs.write(10u8);
+        assert_eq!(bs.data, &[10]);
+    }
+
+    #[test]
+    fn test_aligned() {
+        let mut bs = BitStreamWrite::new();
+        bs.write_1();
+        bs.write_1();
+        bs.write_aligned_bytes(&[20, 19, 18]);
+        assert_eq!(bs.data(), &[0b11000000, 20, 19, 18]);
+
+        bs = BitStreamWrite::new();
+        bs.write_aligned_bytes(&[20, 19, 18]);
+        assert_eq!(bs.data(), &[20, 19, 18]);
+    }
+
+    #[test]
+    fn test_compressed() {
+        let mut bs = BitStreamWrite::new();
+        bs.write_compressed(0u32);
+        assert_eq!(bs.data(), &[0b1111_0000]);
+        assert_eq!(bs.num_bits(), 8);
+
+        bs = BitStreamWrite::new();
+        bs.write_compressed(1u32);
+        assert_eq!(bs.data(), &[0b1111_0001]);
+        assert_eq!(bs.num_bits(), 8);
+
+        bs = BitStreamWrite::new();
+        bs.write_compressed(15u32);
+        assert_eq!(bs.data(), &[0b1111_1111]);
+        assert_eq!(bs.num_bits(), 8);
+
+        bs = BitStreamWrite::new();
+        bs.write_compressed(1u16);
+        assert_eq!(bs.data(), &[0b11_0001_00]);
+        assert_eq!(bs.num_bits(), 6);
+
+        bs = BitStreamWrite::new();
+        bs.write_compressed(4u16);
+        assert_eq!(bs.data(), &[0b11_0100_00]);
+        assert_eq!(bs.num_bits(), 6);
     }
 }

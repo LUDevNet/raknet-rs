@@ -180,11 +180,20 @@ where
 mod tests {
     use std::mem::size_of;
 
+    use crate::BitStreamWrite;
+
     use super::RangeList;
 
     #[test]
     fn size() {
         assert_eq!(size_of::<RangeList<1, u32>>(), 24);
+    }
+
+    #[test]
+    fn serialize() {
+        let mut list: RangeList<1, u32> = Default::default();
+        let mut bs = BitStreamWrite::new();
+        list.serialize(&mut bs)
     }
 
     #[test]
