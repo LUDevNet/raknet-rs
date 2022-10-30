@@ -5,14 +5,17 @@ mod internal_packet;
 pub mod message;
 mod packet_priority;
 mod peer;
+mod queue;
 mod reliability_layer;
 mod types;
+pub mod util;
 
 pub use bit_stream::{BitSize, BitStreamRead, BitStreamWrite};
 pub use error::{Error, Result};
 pub use internal_packet::{InternalPacket, MessageNumberType, Ordering, OrderingIndexType};
 pub use message::ID;
 pub use packet_priority::{OrderingChannel, PacketPriority, PacketReliability};
+pub use queue::Queue;
 pub use reliability_layer::AckList;
 pub use types::{RakNetTime, SystemAddress, SystemIndex};
 

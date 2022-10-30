@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 num-traits = "0.2"
 num-derive = "0.3"
+tracing = "0.1"
 
 [dependencies.smallvec]
 version = "1.8.0"
@@ -18,3 +19,6 @@ features = ["rt", "net"]
 [dev-dependencies.tokio]
 version = "1.19.2"
 features = ["macros"]
+
+[dev-dependencies]
+tracing-subscriber = "0.3"
