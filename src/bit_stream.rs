@@ -507,6 +507,18 @@ impl BitStreamWrite {
     }
 }
 
+impl std::io::Write for BitStreamWrite {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let number_of_bytes = buf.len();
+        self.write_bytes(buf, number_of_bytes);
+        Ok(number_of_bytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
