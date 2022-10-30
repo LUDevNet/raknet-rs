@@ -1,12 +1,19 @@
 mod identifiers;
 use std::net::Ipv4Addr;
 
+use bstr::BStr;
 pub use identifiers::ID;
 
 use crate::{BitStreamRead, RakNetTime, Result, SystemAddress};
 
 pub trait Parse: Sized {
     fn from_bit_stream(bs: &mut BitStreamRead) -> Result<Self>;
+}
+
+#[derive(Debug)]
+pub struct ConnectionRequest<'a> {
+    /// The password sent by the user
+    pub password: &'a BStr,
 }
 
 #[derive(Debug)]

@@ -15,6 +15,7 @@ pub use error::{Error, Result};
 pub use internal_packet::{InternalPacket, MessageNumberType, Ordering, OrderingIndexType};
 pub use message::ID;
 pub use packet_priority::{OrderingChannel, PacketPriority, PacketReliability};
+pub use peer::{RakPeerConfig, RemoteSystemConnectMode};
 pub use queue::Queue;
 pub use reliability_layer::AckList;
 pub use types::{RakNetTime, SystemAddress, SystemIndex};

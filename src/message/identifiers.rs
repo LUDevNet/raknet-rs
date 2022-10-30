@@ -17,8 +17,9 @@
 //! option) any later version.
 
 use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::FromPrimitive;
 use std::mem::size_of;
+
+use crate::Error;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -212,24 +213,21 @@ pub enum ID {
     /// Auto RPC error code
     /// See `AutoRPC.h` for codes, stored in `packet->data[1]`
     RPCRemoteError,
-
-    /// For the user to use.  Start your first enumeration at this value.
-    UserPacketEnum,
+    // /// For the user to use.  Start your first enumeration at this value.
+    // UserPacketEnum,
 }
 
 impl ID {
-    pub fn of_packet(bytes: &[u8]) -> Option<Self> {
+    pub fn of_packet(bytes: &[u8]) -> Result<u8, Error> {
+        const TIMESTAMP: u8 = ID::Timestamp as u8;
         const INDEX_WITH_TIMESTAMP: usize = size_of::<u8>() + size_of::<u32>();
-        match bytes
-            .first()
-            .cloned()
-            .and_then(<ID as FromPrimitive>::from_u8)
-        {
-            Some(ID::Timestamp) => bytes
+        let first_byte = bytes.first().copied().ok_or(Error::MissingID)?;
+        match first_byte {
+            TIMESTAMP => bytes
                 .get(INDEX_WITH_TIMESTAMP)
-                .cloned()
-                .and_then(<ID as FromPrimitive>::from_u8),
-            first => first,
+                .copied()
+                .ok_or(Error::MissingTimedID),
+            first => Ok(first),
         }
     }
 }

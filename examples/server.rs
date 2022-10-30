@@ -1,6 +1,11 @@
+use argh::FromArgs;
+use bstr::{BStr, BString};
+use num_traits::cast::FromPrimitive;
 use raknet::{
-    message::Parse, util::MsgNumGenerator, AckList, BitStreamRead, BitStreamWrite, InternalPacket,
-    MessageNumberType, PacketReliability, Queue, RakNetTime, SystemAddress, SystemIndex, ID,
+    message::{ConnectionRequest, Parse},
+    util::MsgNumGenerator,
+    AckList, BitStreamRead, BitStreamWrite, InternalPacket, MessageNumberType, PacketReliability,
+    Queue, RakNetTime, RakPeerConfig, RemoteSystemConnectMode, SystemAddress, SystemIndex, ID,
 };
 use std::{
     mem,
@@ -12,6 +17,7 @@ use tracing::{debug, error, info, warn};
 
 struct Connection {
     addr: SystemAddress,
+    connect_mode: RemoteSystemConnectMode,
     remote_system_time: RakNetTime,
     msg_num_gen: MsgNumGenerator,
 
@@ -20,6 +26,18 @@ struct Connection {
 }
 
 impl Connection {
+    fn new(addr: SystemAddress) -> Self {
+        Self {
+            addr,
+            connect_mode: RemoteSystemConnectMode::HandlingConnectionRequest,
+            remote_system_time: 0,
+            msg_num_gen: MsgNumGenerator::new(),
+
+            acks: AckList::new(),
+            queue: Queue::default(),
+        }
+    }
+
     fn send(&mut self, bs: BitStreamWrite, reliability: PacketReliability) {
         self.queue.push(bs, reliability);
     }
@@ -29,6 +47,7 @@ impl Connection {
         bytes: &[u8],
         local: SystemAddress,
         time: Duration,
+        cfg: &RakPeerConfig,
     ) -> Option<BitStreamWrite> {
         let mut bit_stream = BitStreamRead::new(bytes);
 
@@ -53,20 +72,39 @@ impl Connection {
                 InternalPacket::parse(&mut bit_stream, self.remote_system_time).expect("D");
             self.acks.insert(internal_packet.msg_num);
 
-            let id = ID::of_packet(internal_packet.data());
-            match id {
+            let id = match ID::of_packet(internal_packet.data()) {
+                Ok(opt) => opt,
+                Err(e) => {
+                    error!("{}", e);
+                    continue;
+                }
+            };
+            match ID::from_u8(id) {
                 Some(ID::ConnectionRequest) => {
-                    // TODO: any remaining bytes are the password
+                    let req = ConnectionRequest {
+                        password: BStr::new(&internal_packet.data[1..]),
+                    };
+                    info!("{:?}", req);
 
-                    info!("Connection Request: {} bits", internal_packet.data_bit_size);
-                    let mut payload = BitStreamWrite::new();
-                    payload.write(ID::ConnectionRequestAccepted as u8);
-                    payload.write_bytes(&self.addr.ip().octets(), 4);
-                    payload.write(self.addr.port());
-                    payload.write::<SystemIndex>(1);
-                    payload.write_bytes(&local.ip().octets(), 4);
-                    payload.write(local.port());
-                    self.send(payload, PacketReliability::Reliable);
+                    if req.password != cfg.incoming_password {
+                        warn!("Password mismatch, disconnecting");
+
+                        // This one we only send once since we don't care if it arrives.
+                        let c = ID::InvalidPassword;
+                        let mut bs = BitStreamWrite::with_capacity(8);
+                        bs.write(c);
+                        self.send(bs, PacketReliability::Reliable); // system priority
+                        self.connect_mode = RemoteSystemConnectMode::DisconnectAsapSilently;
+                    } else {
+                        let mut payload = BitStreamWrite::with_capacity(15 << 3);
+                        payload.write(ID::ConnectionRequestAccepted as u8);
+                        payload.write_bytes(&self.addr.ip().octets(), 4);
+                        payload.write(self.addr.port());
+                        payload.write::<SystemIndex>(1);
+                        payload.write_bytes(&local.ip().octets(), 4);
+                        payload.write(local.port());
+                        self.send(payload, PacketReliability::Reliable);
+                    }
                 }
                 Some(ID::NewIncomingConnection) => {
                     let mut in_bit_stream = BitStreamRead::with_size(
@@ -103,7 +141,7 @@ impl Connection {
                     }
                 }
                 Some(id) => warn!("TODO: {:?}: {} bits", id, internal_packet.data_bit_size),
-                None => error!("Unknown packet data: {:?}", &internal_packet.data),
+                None => warn!("User packet [{}]: {:?}", id, &internal_packet.data[1..]),
             }
         }
         None
@@ -124,16 +162,34 @@ impl Connection {
     }
 }
 
+#[derive(FromArgs)]
+/// Reach new heights.
+struct TestServer {
+    /// the password to use
+    #[argh(option, short = 'P', default = "String::new()")]
+    password: String,
+
+    /// how high to go
+    #[argh(option, short = 'p', default = "2000")]
+    port: u16,
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), io::Error> {
     tracing_subscriber::fmt::init();
-    let local = SystemAddress::new(Ipv4Addr::LOCALHOST, 2000);
+    let args: TestServer = argh::from_env();
+
+    let local = SystemAddress::new(Ipv4Addr::LOCALHOST, args.port);
     let socket = UdpSocket::bind(local).await?;
     let start = Instant::now();
     info!("Server started on {:?}", local);
 
     let mut buf = vec![0; 2048];
     let mut connections: Vec<Connection> = Vec::new();
+    let peer_config = RakPeerConfig {
+        max_incoming_connections: 10,
+        incoming_password: BString::from(args.password),
+    };
 
     loop {
         let (length, remote) = socket.recv_from(&mut buf).await?;
@@ -150,23 +206,28 @@ async fn main() -> Result<(), io::Error> {
 
         debug!("{} bytes from {}", bytes.len(), origin);
         if let Some(connection) = conn {
-            connection.on_packet(bytes, local, Instant::now().duration_since(start));
+            connection.on_packet(
+                bytes,
+                local,
+                Instant::now().duration_since(start),
+                &peer_config,
+            );
             connection.update(&socket).await?;
         } else {
-            match ID::of_packet(bytes) {
+            let id_byte = match ID::of_packet(bytes) {
+                Ok(b) => b,
+                Err(e) => {
+                    error!("{}", e);
+                    continue;
+                }
+            };
+            match ID::from_u8(id_byte) {
                 Some(id) => {
                     debug!("raw: {:?}", id);
                     match id {
                         ID::OpenConnectionRequest => {
                             let reply = if true {
-                                connections.push(Connection {
-                                    addr: origin,
-                                    remote_system_time: 0,
-                                    msg_num_gen: MsgNumGenerator::new(),
-
-                                    acks: AckList::new(),
-                                    queue: Queue::default(),
-                                });
+                                connections.push(Connection::new(origin));
                                 ID::OpenConnectionReply
                             } else {
                                 ID::NoFreeIncomingConnections

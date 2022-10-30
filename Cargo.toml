@@ -7,6 +7,7 @@ edition = "2021"
 num-traits = "0.2"
 num-derive = "0.3"
 tracing = "0.1"
+bstr = "1.0.1"
 
 [dependencies.smallvec]
 version = "1.8.0"
@@ -22,3 +23,4 @@ features = ["macros"]
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
+argh = "0.1.9"

@@ -274,6 +274,13 @@ impl BitStreamWrite {
         }
     }
 
+    pub fn with_capacity(bits: usize) -> Self {
+        Self {
+            data: Vec::with_capacity(bits_to_bytes!(bits)),
+            number_of_bits_used: 0,
+        }
+    }
+
     pub fn num_bits(&self) -> usize {
         self.number_of_bits_used
     }
