@@ -1,4 +1,4 @@
-#![doc(html_logo_url = "/rust-logo-raknet-256.png")]
+#![doc(html_logo_url = "https://lu-dev.net/raknet-rs/rust-logo-raknet-256.png")]
 mod bit_stream;
 pub mod ds;
 mod error;
