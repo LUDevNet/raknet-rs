@@ -58,9 +58,9 @@ impl RemoteSystem {
         self.queue.push(bs, reliability);
     }
 
-    pub(super) fn on_packet<'a, H: PacketHandler>(
+    pub(super) fn on_packet<H: PacketHandler>(
         &mut self,
-        bytes: &'a [u8],
+        bytes: &'_ [u8],
         local: SystemAddress,
         time: Duration,
         cfg: &RakPeerConfig,

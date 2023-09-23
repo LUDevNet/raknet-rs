@@ -134,7 +134,7 @@ impl<'a> BitStreamRead<'a> {
         while number_of_bits_to_read > 0 {
             unsafe {
                 *output[offset].as_mut_ptr() |=
-                    self.data[(self.read_offset >> 3)] << read_offset_mod_8
+                    self.data[self.read_offset >> 3] << read_offset_mod_8
             }; // First half
 
             if read_offset_mod_8 > 0 && number_of_bits_to_read > 8 - read_offset_mod_8 {
@@ -567,6 +567,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unusual_byte_groupings)]
     fn test_compressed() {
         let mut bs = BitStreamWrite::new();
         bs.write_compressed(0u32);

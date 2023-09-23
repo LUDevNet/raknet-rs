@@ -197,6 +197,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::single_range_in_vec_init)]
     fn insert() {
         let mut list: RangeList<1, i32> = Default::default();
         list.insert(1);
