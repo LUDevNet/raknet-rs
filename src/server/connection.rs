@@ -42,7 +42,7 @@ impl RemoteSystem {
         Self {
             addr,
             connect_mode: RemoteSystemConnectMode::HandlingConnectionRequest,
-            remote_system_time: 0,
+            remote_system_time: RakNetTime::ZERO,
             msg_num_gen: MsgNumGenerator::new(),
 
             acks: AckList::new(),
@@ -72,7 +72,7 @@ impl RemoteSystem {
         if acknowledgements {
             let _time: RakNetTime = bit_stream.read().unwrap();
             let _acks = AckList::deserialize(&mut bit_stream).unwrap();
-            info!("time: {}, recv acks: {:?}", _time, _acks);
+            info!("time: {}, recv acks: {:?}", _time.0, _acks);
         }
         let has_time = bit_stream
             .read_bool() // NOTE: BUG in RakNet. If we reach EOF here, just ignore it.
@@ -82,7 +82,7 @@ impl RemoteSystem {
             true => bit_stream.read().expect("C"),
             false => return,
         };
-        debug!("time: {}", self.remote_system_time);
+        debug!("time: {}", self.remote_system_time.0);
 
         while bit_stream.get_number_of_unread_bits() >= mem::size_of::<MessageNumberType>() << 3 {
             let internal_packet =
@@ -148,10 +148,11 @@ impl RemoteSystem {
                     match crate::message::InternalPing::from_bit_stream(&mut in_bit_stream) {
                         Ok(data) => {
                             info!("{:?}", data);
+                            let send_pong_time = RakNetTime::try_from(time).unwrap(); // FIXME
                             let mut out_bit_stream = BitStreamWrite::new();
                             out_bit_stream.write(ID::ConnectedPong);
                             out_bit_stream.write(data.send_ping_time);
-                            out_bit_stream.write(time.as_millis() as RakNetTime);
+                            out_bit_stream.write(send_pong_time);
                             self.send(out_bit_stream, PacketReliability::Reliable);
                         }
                         Err(e) => error!("{}", e),
@@ -177,7 +178,7 @@ impl RemoteSystem {
         }
 
         // FIXME: time?
-        let time = 0;
+        let time = RakNetTime::ZERO;
         let mut output = BitStreamWrite::new();
         self.queue
             .generate_datagram(&mut output, &mut self.msg_num_gen, time, &mut self.acks);

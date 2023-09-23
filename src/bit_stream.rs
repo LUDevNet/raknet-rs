@@ -7,18 +7,28 @@ use crate::{bits_to_bytes, packet_priority::OrderingChannel, PacketReliability, 
 
 pub type BitSize = usize;
 
-pub trait ReadSafe {}
-impl ReadSafe for u64 {}
-impl ReadSafe for u32 {}
-impl ReadSafe for u16 {}
-impl ReadSafe for u8 {}
+/// Marker Trait for reading from a bit stream
+///
+/// ## Safety
+///
+/// Implementing Types must be valid for any bit combination of `std::mem::size_of::<Self>()`
+pub unsafe trait ReadSafe {}
+unsafe impl ReadSafe for u64 {}
+unsafe impl ReadSafe for u32 {}
+unsafe impl ReadSafe for u16 {}
+unsafe impl ReadSafe for u8 {}
 
-pub trait WriteSafe {}
-impl WriteSafe for u64 {}
-impl WriteSafe for u32 {}
-impl WriteSafe for u16 {}
-impl WriteSafe for u8 {}
-impl WriteSafe for ID {}
+/// Marker Trait for writing to a bit stream
+///
+/// ## Safety
+///
+/// Implementing types must have no padding bytes
+pub unsafe trait WriteSafe {}
+unsafe impl WriteSafe for u64 {}
+unsafe impl WriteSafe for u32 {}
+unsafe impl WriteSafe for u16 {}
+unsafe impl WriteSafe for u8 {}
+unsafe impl WriteSafe for ID {}
 
 /// # Safety
 ///

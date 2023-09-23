@@ -12,7 +12,7 @@ mod server;
 mod types;
 pub mod util;
 
-pub use bit_stream::{BitSize, BitStreamRead, BitStreamWrite};
+pub use bit_stream::{BitSize, BitStreamRead, BitStreamWrite, Bits, ReadSafe, WriteSafe};
 pub use error::{Error, Result};
 pub use internal_packet::{InternalPacket, MessageNumberType, Ordering, OrderingIndexType};
 pub use message::ID;
